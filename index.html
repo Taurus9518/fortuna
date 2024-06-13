@@ -1,0 +1,329 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <meta name="mobile-web-app-capable" content="yes">
+    <title>Wheel of Fortune</title>
+    <style>
+        :root {
+            --background-color: #ffffff; /* Нежно голубой цвет */
+            --container-bg-color: #b2ebf2; /* Нежно голубой цвет */
+            --text-color: #000000; /* Черный цвет текста */
+            --result-box-bg: rgba(255, 255, 255, 0.8); /* Белый полупрозрачный цвет */
+        }
+
+        [data-theme="dark"] {
+            --background-color: #121212;
+            --container-bg-color: #b2ebf2; /* Нежно голубой цвет */
+            --text-color: #000000; /* Черный цвет текста */
+            --result-box-bg: rgba(255, 255, 255, 0.8); /* Белый полупрозрачный цвет */
+        }
+
+        html, body {
+            width: 100%;
+            height: 100%;
+            margin: 0;
+            padding: 0;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: flex-start;
+            background-color: var(--background-color);
+            color: var(--text-color);
+            font-family: Arial, sans-serif;
+            overflow: hidden;
+        }
+
+        .container {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: flex-start;
+            width: calc(100% - 20px);
+            height: auto;
+            max-width: 600px;
+            box-shadow: 0 10px 20px rgba(0, 0, 0, 0.2);
+            border-radius: 20px;
+            background-color: var(--container-bg-color);
+            padding: 20px;
+            margin: 10px 0 0 0;
+            box-sizing: border-box;
+        }
+
+        .wheel {
+            position: relative;
+            width: 100%;
+            max-width: 500px;
+            flex-shrink: 0;
+        }
+
+        #canvas {
+            width: 100%;
+            height: auto;
+        }
+
+        #pointer {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            width: 50px;
+            height: 50px;
+            background-color: #FFD700;
+            border-radius: 50%;
+            transform: translate(-50%, -50%);
+            box-shadow: 0 5px 15px rgba(0, 0, 0, 0.2);
+            z-index: 2;
+            border: 5px solid white;
+        }
+
+        #triangle {
+            position: absolute;
+            top: calc(50% - 45px);
+            left: 50%;
+            width: 0;
+            height: 0;
+            border-left: 15px solid transparent;
+            border-right: 15px solid transparent;
+            border-bottom: 30px solid white;
+            transform: translateX(-50%);
+            z-index: 1;
+        }
+
+        #spinButton {
+            margin-top: 20px;
+            padding: 10px 20px;
+            font-size: 16px;
+            background-color: #006400;
+            color: white;
+            border: none;
+            cursor: pointer;
+            border-radius: 10px;
+            box-shadow: 0 5px 15px rgba(0, 0, 0, 0.2);
+            transition: background-color 0.3s, box-shadow 0.3s;
+        }
+
+        #spinButton:hover {
+            background-color: #004d00;
+            box-shadow: 0 8px 20px rgba(0, 0, 0, 0.3);
+        }
+
+        #spinButton:disabled {
+            background-color: #999;
+            cursor: not-allowed;
+        }
+
+        #resultBox {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            padding: 10px;
+            background-color: var(--result-box-bg);
+            border-radius: 10px;
+            box-shadow: 0 5px 15px rgba(0, 0, 0, 0.2);
+            width: 80%;
+            max-width: 300px;
+            text-align: center;
+            font-size: 18px;
+            display: none;
+            align-items: center;
+            justify-content: center;
+            z-index: 3;
+            color: var(--text-color); /* Черный цвет текста */
+        }
+    </style>
+    <script src="https://telegram.org/js/telegram-web-app.js"></script>
+</head>
+<body>
+    <div class="container">
+        <div class="wheel">
+            <canvas id="canvas" width="500" height="500"></canvas>
+            <div id="triangle"></div>
+            <div id="pointer"></div>
+            <div id="resultBox">Результат будет здесь</div>
+        </div>
+        <button id="spinButton">Вращать колесо!</button>
+    </div>
+    <script>
+        document.addEventListener("DOMContentLoaded", function () {
+            const tg = window.Telegram.WebApp;
+            const canvas = document.getElementById('canvas');
+            const ctx = canvas.getContext('2d');
+            const segments = ['🎁', '🎉', '🎊', '🎈', '🎂', '🎄', '🎅', '🎆', '🎇', '🎍'];
+            const descriptions = [
+                'Скидка 50 % на любую из наших услуг а именно чистка ботов, консультация, защита аккаунта',
+                'Бесплатная разблокировка соц сетей и мессенджеров на выбор вот апп, инстаграм, телеграмм',
+                'Скидка 20 % на все продукты от компании inhelpsta',
+                'Бесплатная консультация у коуча-психолога',
+                'Сертификат на 10000 рублей на любую из наших услуг (сертификат бессрочный по желанию можете у нас приобрести его на подарок)',
+                'Бесплатная чистка вашей информации в интернете ( для чистки нужен будет ваш телеграмм аккаунт для входа ) информации о человеке нельзя полностью удалить но можно скрыть ее от недоброжелателей',
+                'Бесплатная чистка в инст до 1000 ботов остальное по прайсу со скидкой 20 %',
+                'Скидка на услугу защита 30 %  ( если берете тариф на год )',
+                'Гайд по авторскому праву в инстаграм (полезно для тех кто занимается продажей брендов в соц сетях)',
+                'Бесплатная экспресс консультация и скидка на консультацию по воц апп инст и тг 30 %'
+            ];
+            const colors = ['#FF6384', '#36A2EB', '#FFCE56', '#4BC0C0', '#9966FF', '#FF9F40', '#C71585', '#20B2AA', '#FFD700', '#8A2BE2'];
+            let startAngle = 0;
+            const arc = Math.PI / (segments.length / 2);
+            let spinAngleStart = 0;
+            let spinTime = 0;
+            let spinTimeTotal = 0;
+            let spinning = false;
+            const chatId = tg.initDataUnsafe.user.id;  // Получение chat_id пользователя
+
+            function drawSegment(index, angle, arc, centerX, centerY, outerRadius) {
+                ctx.fillStyle = colors[index];
+
+                ctx.beginPath();
+                ctx.moveTo(centerX, centerY);
+                ctx.arc(centerX, centerY, outerRadius, angle, angle + arc, false);
+                ctx.lineTo(centerX, centerY);
+                ctx.fill();
+
+                ctx.save();
+                ctx.translate(centerX, centerY);
+                ctx.rotate(angle + arc / 2 + Math.PI / 2);
+
+                ctx.textAlign = "center";
+                ctx.fillStyle = "white";
+                ctx.font = 'bold 28px Helvetica, Arial';
+                ctx.fillText(segments[index], 0, -outerRadius + 50);
+                ctx.restore();
+            }
+
+            function drawRouletteWheel() {
+                const centerX = canvas.width / 2;
+                const centerY = canvas.height / 2;
+                const outerRadius = Math.min(canvas.width, canvas.height) / 2 - 10;
+                const borderWidth = 10;
+
+                ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+                // Draw the outer border
+                ctx.beginPath();
+                ctx.arc(centerX, centerY, outerRadius + borderWidth, 0, 2 * Math.PI, false);
+                ctx.fillStyle = 'white';
+                ctx.fill();
+
+                // Draw the segments
+                for (let i = 0; i < segments.length; i++) {
+                    const angle = startAngle + i * arc;
+                    drawSegment(i, angle, arc, centerX, centerY, outerRadius);
+                }
+            }
+
+            function rotateWheel() {
+                spinTime += 30;
+                if (spinTime >= spinTimeTotal) {
+                    stopRotateWheel();
+                    return;
+                }
+                const spinAngle = easeOutCubic(spinTime, 0, spinAngleStart, spinTimeTotal);
+                startAngle += (spinAngle * Math.PI / 180);
+                drawRouletteWheel();
+                requestAnimationFrame(rotateWheel);
+            }
+
+            function stopRotateWheel() {
+                const degrees = startAngle * 180 / Math.PI + 90;
+                const arcd = arc * 180 / Math.PI;
+                const index = Math.floor((360 - degrees % 360) / arcd);
+                const text = segments[index];
+                const description = descriptions[index];
+                const resultBox = document.getElementById('resultBox');
+                resultBox.innerText = `${text} - ${description}`;
+                resultBox.style.display = 'flex';
+                sendMessageToServer(`${text} - ${description}`);
+                spinning = false;
+                document.getElementById('spinButton').disabled = false;
+            }
+
+            function easeOutCubic(t, b, c, d) {
+                t /= d;
+                t--;
+                return c * (t * t * t + 1) + b;
+            }
+
+            function easeInQuad(t, b, c, d) {
+                t /= d;
+                return c * t * t + b;
+            }
+
+            function spinWheel() {
+                if (spinning) return;
+                spinning = true;
+                spinAngleStart = (Math.random() * 10 + 10) * 2;
+                spinTime = 0;
+                spinTimeTotal = (Math.random() * 10 + 20) * 1000;
+
+                let accelerationTime = spinTimeTotal / 4;
+                let decelerationTime = spinTimeTotal - accelerationTime;
+
+                function accelerateWheel() {
+                    spinTime += 30;
+                    if (spinTime >= accelerationTime) {
+                        spinTime = accelerationTime;
+                        requestAnimationFrame(decelerateWheel);
+                        return;
+                    }
+                    const spinAngle = easeInQuad(spinTime, 0, spinAngleStart, accelerationTime);
+                    startAngle += (spinAngle * Math.PI / 180);
+                    drawRouletteWheel();
+                    requestAnimationFrame(accelerateWheel);
+                }
+
+                function decelerateWheel() {
+                    spinTime += 30;
+                    if (spinTime >= spinTimeTotal) {
+                        stopRotateWheel();
+                        return;
+                    }
+                    const spinAngle = easeOutCubic(spinTime - accelerationTime, spinAngleStart, -spinAngleStart, decelerationTime);
+                    startAngle += (spinAngle * Math.PI / 180);
+                    drawRouletteWheel();
+                    requestAnimationFrame(decelerateWheel);
+                }
+
+                requestAnimationFrame(accelerateWheel);
+            }
+
+            function applyTheme(themeParams) {
+                document.documentElement.style.setProperty('--background-color', themeParams.bg_color);
+                drawRouletteWheel();
+            }
+
+            function sendMessageToServer(message) {
+                fetch('http://localhost:5000/send_message', { // Убедитесь, что URL правильный
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({ message, chat_id: chatId }),
+                }).then(response => response.json())
+                .then(data => {
+                    console.log('Success:', data);
+                })
+                .catch((error) => {
+                    console.error('Error:', error);
+                });
+            }
+
+            function init() {
+                tg.ready();
+                drawRouletteWheel();
+                applyTheme(tg.themeParams);
+                document.getElementById("spinButton").addEventListener("click", () => {
+                    document.getElementById('resultBox').style.display = 'none';
+                    spinWheel();
+                });
+                tg.onEvent('themeChanged', () => applyTheme(tg.themeParams));
+            }
+
+            init();
+        });
+    </script>
+</body>
+</html>
